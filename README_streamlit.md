@@ -27,3 +27,10 @@ Here are example snapshots generated from a representative sample of the dataset
 - **Salary Insights:** ![2_Salary_Insights](screenshots/2_Salary_Insights.png)
 - **Company Trends:** ![3_Company_Trends](screenshots/3_Company_Trends.png)
 - **Skills Analysis:** ![4_Skills_Analysis](screenshots/4_Skills_Analysis.png)
+
+## Repository cleanup (important) ⚠️
+To keep the repository small and avoid exceeding GitHub file-size limits, the large dataset `data/SGJobData (2).csv` was removed from the repository history.
+
+A backup of the prior remote `main` branch was created as `backup-remote-main` before this change; if you need the previous history, you can inspect or restore from that branch.
+
+If you want me to remove other large files or add metadata about dataset provenance (e.g., external storage links), I can add that as well.
