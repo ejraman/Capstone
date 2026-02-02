@@ -19,6 +19,18 @@ This Streamlit app summarizes and visualizes `SGJobData (2).csv` (large file ~27
 - The loader is designed to stream the data to avoid excessive memory use. It produces a sample for interactive visualizations.
 - If you want faster iteration during development, create a small subsampled CSV and point the app at it via the sidebar.
 
+## New visual pages
+- **7_Industry_Heatmap:** industry × time heatmap for vacancy intensity (`pages/7_Industry_Heatmap.py`).
+- **8_Company_Growth:** top company movers and growth sparklines (`pages/8_Company_Growth.py`).
+- **9_Policy_Editor:** editable policy notes/flags for companies/industries (`pages/9_Policy_Editor.py`).
+
+## Visual DB
+Use `scripts/build_visual_db.py` to create `data/visual.db` (already included) which powers the company and industry pages. Example:
+
+    python scripts/build_visual_db.py --csv "data/SGJobData (2).csv" --db data/visual.db
+
+The `pages/` UI reads `data/visual.db` by default. If you prefer, you can rebuild the DB with a different date aggregation (weekly/monthly).
+
 ## Screenshots 📸
 Here are example snapshots generated from a representative sample of the dataset. These are saved under the `screenshots/` folder; you can regenerate them using `scripts/generate_screenshots.py`.
 

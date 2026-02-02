@@ -203,3 +203,82 @@ def stream_summary(path, sample_size=20000, date_freq='W'):
         'unique_companies': len(company_counts)
     }
     return result
+
+
+# --- New helpers for visual DB analyses ---
+import sqlite3
+
+
+def load_industry_vacancies(db_path='data/visual.db'):
+    """Return DataFrame of industry, period, vacancies, postings."""
+    conn = sqlite3.connect(db_path)
+    df = pd.read_sql('SELECT industry, period, vacancies, postings FROM industry_vacancies', conn)
+    conn.close()
+    if not df.empty:
+        df['period_dt'] = pd.to_datetime(df['period'], errors='coerce')
+    return df
+
+
+def industry_heatmap_matrix(db_path='data/visual.db', top_n=20):
+    """Return pivoted DataFrame suitable for heatmaps: index=industry, columns=period (sorted), values=vacancies."""
+    df = load_industry_vacancies(db_path)
+    if df.empty:
+        return pd.DataFrame()
+    # choose top industries by total vacancies
+    top_inds = df.groupby('industry')['vacancies'].sum().nlargest(top_n).index.tolist()
+    df_top = df[df['industry'].isin(top_inds)].copy()
+    pivot = df_top.pivot_table(index='industry', columns='period', values='vacancies', aggfunc='sum', fill_value=0)
+    # sort columns chronologically using datetime parsing (robust to mixed freq)
+    cols_sorted = sorted(pivot.columns, key=lambda x: pd.to_datetime(x, errors='coerce'))
+    pivot = pivot[cols_sorted]
+    return pivot
+
+
+def load_company_vacancies(db_path='data/visual.db'):
+    """Return DataFrame of company name, period, vacancies, postings."""
+    conn = sqlite3.connect(db_path)
+    df = pd.read_sql('SELECT c.name as company, v.period, v.vacancies, v.postings FROM vacancies v JOIN companies c ON v.company_id=c.id', conn)
+    conn.close()
+    if not df.empty:
+        df['period_dt'] = pd.to_datetime(df['period'], errors='coerce')
+    return df
+
+
+def compute_company_growth(db_path='data/visual.db', lookback_periods=2, top_n=20):
+    """Compute recent growth rates for companies.
+
+    lookback_periods=2 computes percent change between last period and previous (week-over-week if weekly).
+    Returns DataFrame with company, last_vacancies, prev_vacancies, pct_change, and sparkline data.
+    """
+    df = load_company_vacancies(db_path)
+    if df.empty:
+        return pd.DataFrame()
+    # Pivot to companies x period
+    pivot = df.pivot_table(index='company', columns='period', values='vacancies', aggfunc='sum', fill_value=0)
+    # identify last two periods
+    cols = sorted(pivot.columns, key=lambda x: pd.to_datetime(x, errors='coerce'))
+    if len(cols) < 2:
+        return pd.DataFrame()
+    last = cols[-1]
+    prev = cols[-2]
+    res = []
+    for comp, row in pivot.iterrows():
+        last_v = row.get(last, 0)
+        prev_v = row.get(prev, 0)
+        pct = (last_v - prev_v) / prev_v * 100 if prev_v != 0 else float('inf') if last_v>0 else 0.0
+        res.append((comp, int(last_v), int(prev_v), pct, row[cols[-12:]].tolist() if len(cols)>12 else row.tolist()))
+    out = pd.DataFrame(res, columns=['company','last_vacancies','prev_vacancies','pct_change','history'])
+    out = out.sort_values('pct_change', ascending=False).head(top_n)
+    return out
+
+
+def load_policy_notes(path='data/policy_notes.csv'):
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        return pd.DataFrame(columns=['company','industry','note','flag'])
+
+
+def save_policy_notes(df, path='data/policy_notes.csv'):
+    df.to_csv(path, index=False)
+    return path
