@@ -1,0 +1,12 @@
+# Ignore data and environment
+/data/
+*.csv
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Python packaging
+*.egg-info/
+dist/
+build/
