@@ -1,0 +1,39 @@
+name: Refresh visual.db
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # weekly on Monday at 02:00 UTC
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+jobs:
+  build-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build visual DB
+        run: |
+          python scripts/build_visual_db.py --csv "data/SGJobData (2).csv" --db data/visual.db --date-freq W
+      - name: Upload visual DB as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-db
+          path: data/visual.db
+      - name: Commit visual.db to branch (optional)
+        if: false
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b visual-db || true
+          git add data/visual.db
+          git commit -m "Update visual.db"
+          git push origin visual-db --force

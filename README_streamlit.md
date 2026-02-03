@@ -31,6 +31,11 @@ Use `scripts/build_visual_db.py` to create `data/visual.db` (already included) w
 
 The `pages/` UI reads `data/visual.db` by default. If you prefer, you can rebuild the DB with a different date aggregation (weekly/monthly).
 
+## Automation & deployment
+- A GitHub Action `refresh_visual_db.yml` (scheduled weekly and run-on-demand) will rebuild `data/visual.db` and upload it as a workflow artifact.
+- A Dockerfile and `deploy_docker.yml` workflow are included to build and push a container image to GitHub Container Registry (`ghcr.io/<owner>/capstone:latest`). The workflow uses the repository's `GITHUB_TOKEN` so no additional secrets are required for pushing to GHCR for the same owner. To use a different registry or deploy to a hosting provider, we can update the workflow and add secrets (e.g., cloud provider credentials).
+- The executive brief PDF can be exported from the app via the **Executive Brief** page (creates charts and a downloadable PDF).
+
 ## Screenshots 📸
 Here are example snapshots generated from a representative sample of the dataset. These are saved under the `screenshots/` folder; you can regenerate them using `scripts/generate_screenshots.py`.
 

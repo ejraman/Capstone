@@ -6,3 +6,4 @@ python-dateutil
 matplotlib
 pillow
 scikit-learn
+reportlab
