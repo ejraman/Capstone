@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 @st.cache_data
 def read_sample(csv_path: str, nrows: int = 20000):
@@ -215,7 +218,8 @@ def load_industry_vacancies(db_path='data/visual.db'):
     df = pd.read_sql('SELECT industry, period, vacancies, postings FROM industry_vacancies', conn)
     conn.close()
     if not df.empty:
-        df['period_dt'] = pd.to_datetime(df['period'], errors='coerce')
+        # period strings are ranges like 'YYYY-MM-DD/YYYY-MM-DD' -> use start date
+        df['period_dt'] = pd.to_datetime(df['period'].astype(str).str.split('/').str[0], errors='coerce')
     return df
 
 
@@ -240,7 +244,8 @@ def load_company_vacancies(db_path='data/visual.db'):
     df = pd.read_sql('SELECT c.name as company, v.period, v.vacancies, v.postings FROM vacancies v JOIN companies c ON v.company_id=c.id', conn)
     conn.close()
     if not df.empty:
-        df['period_dt'] = pd.to_datetime(df['period'], errors='coerce')
+        # period strings are ranges like 'YYYY-MM-DD/YYYY-MM-DD' -> use start date
+        df['period_dt'] = pd.to_datetime(df['period'].astype(str).str.split('/').str[0], errors='coerce')
     return df
 
 
@@ -282,3 +287,61 @@ def load_policy_notes(path='data/policy_notes.csv'):
 def save_policy_notes(df, path='data/policy_notes.csv'):
     df.to_csv(path, index=False)
     return path
+
+
+def compute_company_yoy_growth(db_path='data/visual.db', top_n=20):
+    """Compute year-over-year growth per company using annual totals.
+
+    Returns DataFrame with company, last_year, prev_year, yoy_pct sorted descending.
+    """
+    df = load_company_vacancies(db_path)
+    if df.empty:
+        return pd.DataFrame()
+    # ensure period_dt exists and is datetime
+    if 'period_dt' not in df.columns or not pd.api.types.is_datetime64_any_dtype(df['period_dt']):
+        df['period_dt'] = pd.to_datetime(df['period'], errors='coerce')
+    df['year'] = df['period_dt'].dt.year
+    agg = df.groupby(['company','year'])['vacancies'].sum().unstack(fill_value=0)
+    years = sorted(agg.columns)
+    if len(years) < 2:
+        return pd.DataFrame()
+    last = years[-1]
+    prev = years[-2]
+    res = []
+    for comp, row in agg.iterrows():
+        last_v = int(row[last])
+        prev_v = int(row[prev])
+        if prev_v == 0:
+            pct = float('inf') if last_v>0 else 0.0
+        else:
+            pct = (last_v - prev_v) / prev_v * 100
+        res.append((comp, last_v, prev_v, pct))
+    out = pd.DataFrame(res, columns=['company','last_year_total','prev_year_total','yoy_pct'])
+    out = out.sort_values('yoy_pct', ascending=False).head(top_n)
+    return out
+
+
+def cluster_companies(db_path='data/visual.db', n_clusters=5, top_n=200):
+    """Cluster companies by their vacancy time-series.
+
+    - selects top_n companies by total vacancies, pivots to company x period, scales rows,
+      reduces dimensionality with PCA, and applies KMeans.
+    - returns DataFrame with company and cluster label, and the fitted model (PCA, KMeans) for plotting if needed.
+    """
+    df = load_company_vacancies(db_path)
+    if df.empty:
+        return pd.DataFrame(), None, None
+    pivot = df.pivot_table(index='company', columns='period', values='vacancies', aggfunc='sum', fill_value=0)
+    totals = pivot.sum(axis=1).sort_values(ascending=False)
+    selected = totals.head(top_n).index.tolist()
+    X = pivot.loc[selected]
+    # rows -> features are periods; scale by row
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    # reduce dims
+    pca = PCA(n_components=min(10, X_scaled.shape[1]))
+    X_p = pca.fit_transform(X_scaled)
+    kmeans = KMeans(n_clusters=min(n_clusters, len(selected)), random_state=42)
+    labels = kmeans.fit_predict(X_p)
+    out = pd.DataFrame({'company': selected, 'cluster': labels})
+    return out, pca, kmeans
